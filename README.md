@@ -82,6 +82,57 @@ defer si.Leave()
 
 See `subinterp.go` for the full API.
 
+## JSON hot path
+
+For the common "JSON-pipe extension" embedding contract (host sends a
+JSON document, Python function processes, host receives JSON back),
+use the consolidated `LoadSource` + `CallJSONFunctionByName` helpers.
+Each `CallJSONFunctionByName` is ONE cgo crossing — the entire
+`json.loads(payload) → fn(parsed) → json.dumps(result)` chain runs
+in libpython:
+
+```go
+import (
+    "log/slog" // or your preferred structured logger; see note below
+    "runtime"
+
+    "github.com/luxfi/log"
+    python3 "github.com/hanzoai/cpy3"
+)
+
+func runHook(src, payload string) (string, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
+
+    python3.Py_InitializeEx(false)
+    si, err := python3.NewSubInterpreter(python3.DefaultSubInterpreterConfig())
+    if err != nil {
+        return "", err
+    }
+    defer si.Close()
+
+    si.Enter()
+    defer si.Leave()
+
+    if err := python3.LoadSource(src); err != nil {
+        log.Error("load python source", "err", err)
+        return "", err
+    }
+
+    out, err := python3.CallJSONFunctionByName("handle", payload)
+    if err != nil {
+        log.Error("python hook failed", "err", err)
+        return "", err
+    }
+    log.Info("python hook ok", "bytes_in", len(payload), "bytes_out", len(out))
+    return out, nil
+}
+```
+
+`luxfi/log` is the canonical Hanzo Go logger. The helpers don't
+depend on it — that's just the example wiring. The cpy3 API surface
+itself has no logger dependency.
+
 # API
 
 Some functions mix go code and call to Python function. Those functions will
