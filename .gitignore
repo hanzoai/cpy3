@@ -14,3 +14,7 @@ vendor
 
 # IDE config
 .vscode
+
+# Local CPython 3.13t build artifacts (see scripts/build-python313t.sh)
+/python313t-build/
+/python313t-src/
