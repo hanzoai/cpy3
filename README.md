@@ -1,6 +1,13 @@
-# Go bindings for the CPython-3 C-API
+# Go bindings for the CPython-3 C-API (Hanzo fork)
 
-**Currently supports python-3.7 only.**
+**Supports Python 3.11, 3.12, 3.13.**
+
+> This is the Hanzo fork of [`go-python/cpy3`](https://github.com/go-python/cpy3),
+> updated to compile and run against modern CPython releases. See
+> [`HANZO_CHANGES.md`](HANZO_CHANGES.md) for the diff against upstream
+> (Python 3.12+ removed-API polyfills, sub-interpreter wrapper, free-threading
+> awareness). All credit for the original bindings goes to the go-python team;
+> license remains MIT.
 
 This package provides a ``go`` package named "python" under which most of the
 ``PyXYZ`` functions and macros of the public C-API of CPython have been
@@ -32,7 +39,32 @@ the `PKG_CONFIG_PATH` environment variable.
 
 ## Go get
 
-Then simply `go get github.com/go-python/cpy3`
+```
+go get github.com/hanzoai/cpy3
+```
+
+Then in your code:
+
+```go
+import python3 "github.com/hanzoai/cpy3"
+```
+
+## Sub-interpreters (PEP 684)
+
+On Python 3.12+, use the sub-interpreter wrapper for tenant / per-worker
+isolation with true parallelism:
+
+```go
+si, err := python3.NewSubInterpreter(python3.DefaultSubInterpreterConfig())
+if err != nil { /* ... */ }
+defer si.Close()
+
+si.Enter()
+defer si.Leave()
+// ... any python3.* call now targets this sub-interpreter ...
+```
+
+See `subinterp.go` for the full API.
 
 # API
 

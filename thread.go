@@ -9,8 +9,17 @@ package python3
 
 /*
 #include "Python.h"
+#include "macro.h"
 */
 import "C"
+
+// PyEval_InitThreads / PyEval_ReInitThreads were no-ops since Python 3.9
+// and removed in Python 3.13. They are kept here for API compatibility;
+// on 3.13+ they polyfill to no-ops via macro.h.
+//
+// PyGILState_Ensure / PyGILState_Release continue to work but are
+// essentially no-ops on free-threaded (--disable-gil, PEP 703) builds.
+// Use IsGILDisabled() to detect.
 
 //PyThreadState : https://docs.python.org/3/c-api/init.html#c.PyThreadState
 type PyThreadState C.PyThreadState

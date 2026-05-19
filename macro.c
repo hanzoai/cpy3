@@ -110,3 +110,7 @@ int _go_PyObject_DelAttrString(PyObject *o, const char *attr_name) {
 int _go_PyObject_TypeCheck(PyObject *o, PyTypeObject *type) {
     return PyObject_TypeCheck(o, type);
 }
+
+int _go_hz_gil_disabled(void) {
+    return _hz_gil_disabled();
+}
