@@ -1,37 +1,58 @@
 /*
 SPDX-License-Identifier: MIT
 Hanzo additions, 2026-05-19.
+
+These tests deliberately run in package python3 (not python3_test)
+so they share Py_Initialize state with the other in-package tests
+that touch global Python state. The harness pattern matches
+subinterp_test.go: pin OS thread, Py_Initialize (idempotent), create
+sub-interpreter, run, tear down.
 */
 
-package python3_test
+package python3
 
 import (
 	"errors"
-	"runtime"
+	gort "runtime"
 	"strings"
 	"testing"
-
-	python3 "github.com/hanzoai/cpy3"
 )
+
+// initAndPin pins the goroutine to its OS thread and brings the main
+// interpreter up to a state where NewSubInterpreter can be called
+// (caller thread holds the main GIL). Caller must Defer the returned
+// teardown which unpins. The teardown does NOT touch Python state —
+// by the time the test body runs `defer si.Close()`, the sub-interp's
+// state has been torn down and the calling thread holds no GIL.
+//
+// Subsequent tests can call this safely; Py_Initialize is idempotent.
+func initAndPin(t *testing.T) (teardown func()) {
+	t.Helper()
+	gort.LockOSThread()
+	Py_Initialize()
+	// Py_Initialize leaves the calling thread holding the main GIL.
+	// Caller must hold it before NewSubInterpreter — we're already
+	// there.
+	return func() {
+		// Sub-interp Close already released the GIL. We do NOT call
+		// PyEval_SaveThread here — that would fail without a thread
+		// state. Just unpin.
+		gort.UnlockOSThread()
+	}
+}
 
 // TestCallJSONFunctionByName_HappyPath exercises the consolidated
 // JSON hot path. It loads a tiny Python source into a fresh
 // sub-interpreter, calls it, and asserts the JSON round-trip works.
 func TestCallJSONFunctionByName_HappyPath(t *testing.T) {
-	python3.Py_InitializeEx(false)
+	defer initAndPin(t)()
 
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	mainState := python3.PyEval_SaveThread()
-	defer python3.PyEval_RestoreThread(mainState)
-
-	// Bootstrap a fresh sub-interpreter for isolation.
-	python3.PyEval_RestoreThread(mainState)
-	si, err := python3.NewSubInterpreter(python3.DefaultSubInterpreterConfig())
+	si, err := NewSubInterpreter(DefaultSubInterpreterConfig())
 	if err != nil {
 		t.Fatalf("NewSubInterpreter: %v", err)
 	}
 	defer si.Close()
+
 	si.Enter()
 	defer si.Leave()
 
@@ -39,11 +60,11 @@ func TestCallJSONFunctionByName_HappyPath(t *testing.T) {
 def echo(p):
     return {"got": p, "kind": type(p).__name__}
 `
-	if err := python3.LoadSource(src); err != nil {
+	if err := LoadSource(src); err != nil {
 		t.Fatalf("LoadSource: %v", err)
 	}
 
-	out, err := python3.CallJSONFunctionByName("echo", `{"a":1,"b":"two"}`)
+	out, err := CallJSONFunctionByName("echo", `{"a":1,"b":"two"}`)
 	if err != nil {
 		t.Fatalf("CallJSONFunctionByName: %v", err)
 	}
@@ -58,32 +79,27 @@ def echo(p):
 // TestCallJSONFunctionByName_Unknown verifies ErrUnknownFunction is
 // returned for a name that isn't defined or isn't callable.
 func TestCallJSONFunctionByName_Unknown(t *testing.T) {
-	python3.Py_InitializeEx(false)
+	defer initAndPin(t)()
 
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	mainState := python3.PyEval_SaveThread()
-	defer python3.PyEval_RestoreThread(mainState)
-
-	python3.PyEval_RestoreThread(mainState)
-	si, err := python3.NewSubInterpreter(python3.DefaultSubInterpreterConfig())
+	si, err := NewSubInterpreter(DefaultSubInterpreterConfig())
 	if err != nil {
 		t.Fatalf("NewSubInterpreter: %v", err)
 	}
 	defer si.Close()
+
 	si.Enter()
 	defer si.Leave()
 
-	if err := python3.LoadSource(`x = 42`); err != nil {
+	if err := LoadSource(`x = 42`); err != nil {
 		t.Fatalf("LoadSource: %v", err)
 	}
 
 	// "x" exists but is not callable.
-	if _, err := python3.CallJSONFunctionByName("x", `null`); !errors.Is(err, python3.ErrUnknownFunction) {
+	if _, err := CallJSONFunctionByName("x", `null`); !errors.Is(err, ErrUnknownFunction) {
 		t.Fatalf("expected ErrUnknownFunction for non-callable, got %v", err)
 	}
 	// "missing" does not exist at all.
-	if _, err := python3.CallJSONFunctionByName("missing", `null`); !errors.Is(err, python3.ErrUnknownFunction) {
+	if _, err := CallJSONFunctionByName("missing", `null`); !errors.Is(err, ErrUnknownFunction) {
 		t.Fatalf("expected ErrUnknownFunction for missing name, got %v", err)
 	}
 }
@@ -91,30 +107,25 @@ func TestCallJSONFunctionByName_Unknown(t *testing.T) {
 // TestCallJSONFunctionByName_PyException verifies a Python-side
 // exception is surfaced as a non-nil error with a useful message.
 func TestCallJSONFunctionByName_PyException(t *testing.T) {
-	python3.Py_InitializeEx(false)
+	defer initAndPin(t)()
 
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	mainState := python3.PyEval_SaveThread()
-	defer python3.PyEval_RestoreThread(mainState)
-
-	python3.PyEval_RestoreThread(mainState)
-	si, err := python3.NewSubInterpreter(python3.DefaultSubInterpreterConfig())
+	si, err := NewSubInterpreter(DefaultSubInterpreterConfig())
 	if err != nil {
 		t.Fatalf("NewSubInterpreter: %v", err)
 	}
 	defer si.Close()
+
 	si.Enter()
 	defer si.Leave()
 
-	if err := python3.LoadSource(`
+	if err := LoadSource(`
 def boom(_):
     raise ValueError("kaboom")
 `); err != nil {
 		t.Fatalf("LoadSource: %v", err)
 	}
 
-	_, err = python3.CallJSONFunctionByName("boom", `null`)
+	_, err = CallJSONFunctionByName("boom", `null`)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
