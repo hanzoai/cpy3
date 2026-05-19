@@ -86,6 +86,37 @@ they become no-ops, harmless. Use the boolean to decide whether the
 pool-of-sub-interpreters trick is needed for parallelism (it isn't, on
 free-threaded builds).
 
+### JSON hot-path helper — additive
+
+`LoadSource(src string) error` and `CallJSONFunctionByName(fn, payload
+string) (string, error)` collapse the common "JSON-pipe extension"
+embedding contract into ONE cgo crossing per invocation. The long
+form via the individual wrappers is fine for low-throughput or
+non-JSON marshaling, but per-iteration cgo crossing overhead (~150ns
+each on macOS, plus a few hundred bytes of M's system stack) becomes
+material at high throughput — and on Apple Silicon we observed
+SIGBUS at ~400k sustained iterations of the 9-call long form
+because of accumulated system-stack pressure. `CallJSONFunctionByName`
+does all the work (lookup, json.loads, call, json.dumps, encode)
+inside one C function so libpython manages its own stack.
+
+The helper also exports `ErrUnknownFunction` so callers can map a
+missing-function case to their own ergonomic error
+(`errors.Is(err, python3.ErrUnknownFunction)`).
+
+This is the primitive Hanzo Base's pyvm extension runtime is built
+on (HIP-0105). For arbitrary Python value marshaling the long form
+via the per-type wrappers remains the right tool.
+
+### CPython 3.13t build script — additive (scripts/)
+
+`scripts/build-python313t.sh` builds CPython 3.13.x with
+`--disable-gil` to a local `./python313t-build/`, idempotent, with a
+`python3-embed.pc` so `PKG_CONFIG_PATH=$PWD/python313t-build/lib/pkgconfig`
+is enough to steer cpy3 at the free-threaded interpreter. Useful for
+benchmarking parallel PEP 703 speedups before the system Python
+ships a stable `python3.13t`.
+
 ### Module path: `github.com/hanzoai/cpy3`
 
 Go module is now `github.com/hanzoai/cpy3`. Go `1.21+`. Package name
