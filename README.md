@@ -1,13 +1,29 @@
 # Go bindings for the CPython-3 C-API (Hanzo fork)
 
-**Supports Python 3.11, 3.12, 3.13.**
+**Supports Python 3.11, 3.12, 3.13, 3.13t (free-threaded).**
 
-> This is the Hanzo fork of [`go-python/cpy3`](https://github.com/go-python/cpy3),
-> updated to compile and run against modern CPython releases. See
-> [`HANZO_CHANGES.md`](HANZO_CHANGES.md) for the diff against upstream
-> (Python 3.12+ removed-API polyfills, sub-interpreter wrapper, free-threading
-> awareness). All credit for the original bindings goes to the go-python team;
-> license remains MIT.
+> Hanzo fork of [`go-python/cpy3`](https://github.com/go-python/cpy3)
+> with Python 3.12+ compat, sub-interpreter wrapper (PEP 684),
+> free-threading detection (PEP 703), a JSON hot-path helper for
+> embedding contracts, and a script that builds free-threaded
+> CPython 3.13t locally. See [`HANZO_CHANGES.md`](HANZO_CHANGES.md)
+> for the diff against upstream. All credit for the original
+> bindings goes to the go-python team; license remains MIT.
+
+## What this fork adds (TL;DR)
+
+- **Python 3.12 / 3.13 compat** — removed-API polyfills via `macro.h`
+  so the same Go source links against 3.11 → 3.13t with no changes.
+- **`SubInterpreter`** — Go wrapper around `Py_NewInterpreterFromConfig`
+  (PEP 684 OWN_GIL by default). One sub-interp per concurrent tenant.
+- **`IsGILDisabled()`** — runtime check for `Py_GIL_DISABLED` builds
+  (PEP 703 free-threading).
+- **`LoadSource` + `CallJSONFunctionByName`** — single-cgo-crossing
+  helpers for the common "JSON-in, JSON-out" extension embedding
+  contract. Faster and stack-safer than the long form for sustained
+  high-throughput.
+- **`scripts/build-python313t.sh`** — idempotent local build of
+  free-threaded CPython 3.13.x.
 
 This package provides a ``go`` package named "python" under which most of the
 ``PyXYZ`` functions and macros of the public C-API of CPython have been
