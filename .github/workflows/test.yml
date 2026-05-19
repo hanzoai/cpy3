@@ -46,8 +46,20 @@ jobs:
       # to non-cpy3 reasons (sys.stderr setup, PyErr_PrintEx behaviour
       # changes, embedding quirks on Homebrew Python). Tracked in
       # HANZO_CHANGES.md "Known limitations".
-      - name: Test (safe subset)
+      #
+      # TestSubInterpreter_* and TestCallJSONFunctionByName_* /
+      # TestLoadSource_* share Python global state with the data-type
+      # tests, so we run them in separate `go test` invocations to
+      # avoid cross-test interpreter pollution. Linux setup-python
+      # doesn't always show the issue but the discipline is the same.
+      - name: Test (data types + errors)
         run: |
           go test -count=1 -timeout=120s -run \
-            'TestBool|TestByte|TestBytes|TestComplex|TestDict|TestErrorSetString|TestErrorBadArgument|TestErrorNoMemory|TestErrorBadInternalCall|TestErrorImport|TestErrorSyntax|TestErrorExceptionMatches|TestErrorGivenExceptionMatches|TestErrorNormalizeException|TestIsGILDisabled|TestSubInterpreter' \
+            'TestBool|TestByte|TestBytes|TestComplex|TestDict|TestErrorSetString|TestErrorBadArgument|TestErrorNoMemory|TestErrorBadInternalCall|TestErrorImport|TestErrorSyntax|TestErrorExceptionMatches|TestErrorGivenExceptionMatches|TestErrorNormalizeException|TestIsGILDisabled' \
+            ./...
+
+      - name: Test (sub-interpreter + JSON hot path)
+        run: |
+          go test -count=1 -timeout=120s -run \
+            'TestSubInterpreter|TestCallJSONFunctionByName|TestLoadSource' \
             ./...
