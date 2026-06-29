@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/hero.svg" alt="cpy3" width="880"></p>
+
 # Go bindings for the CPython-3 C-API (Hanzo fork)
 
 **Supports Python 3.11, 3.12, 3.13, 3.13t (free-threaded).**
