@@ -1,6 +1,6 @@
 module github.com/hanzoai/cpy3
 
-go 1.21
+go 1.27.1
 
 require github.com/stretchr/testify v1.2.2
 

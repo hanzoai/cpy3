@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	python "github.com/hanzoai/cpy3"
 )
@@ -58,22 +59,22 @@ func renderTemplate(n int, functionName string, pyArgs ...string) string {
     return result;
 }
 `
-	args := ""
+	var args strings.Builder
 	for _, arg := range pyArgs {
-		args += fmt.Sprintf("PyObject *%s, ", arg)
+		fmt.Fprintf(&args, "PyObject *%s, ", arg)
 	}
-	switchTemplate := ""
+	var switchTemplate strings.Builder
 	for i := 0; i < n+1; i++ {
-		switchTemplate += fmt.Sprintf("        case %d:\n", i)
-		args := ""
+		fmt.Fprintf(&switchTemplate, "        case %d:\n", i)
+		var args strings.Builder
 		for _, arg := range pyArgs {
-			args += fmt.Sprintf("%s, ", arg)
+			fmt.Fprintf(&args, "%s, ", arg)
 		}
 		for j := 0; j < i; j++ {
-			args += fmt.Sprintf("argv[%d], ", j)
+			fmt.Fprintf(&args, "argv[%d], ", j)
 		}
-		args += "NULL"
-		switchTemplate += fmt.Sprintf("            return %s(%s);\n", functionName, args)
+		args.WriteString("NULL")
+		fmt.Fprintf(&switchTemplate, "            return %s(%s);\n", functionName, args.String())
 	}
-	return fmt.Sprintf(template, functionName, args, switchTemplate)
+	return fmt.Sprintf(template, functionName, args.String(), switchTemplate.String())
 }

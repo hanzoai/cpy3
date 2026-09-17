@@ -1,7 +1,7 @@
 package python3
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,7 +25,7 @@ func TestRunFile(t *testing.T) {
 func TestRunString(t *testing.T) {
 	Py_Initialize()
 
-	pythonCode, err := ioutil.ReadFile("tests/test.py")
+	pythonCode, err := os.ReadFile("tests/test.py")
 	assert.Nil(t, err)
 
 	assert.Zero(t, PyRun_SimpleString(string(pythonCode)))
